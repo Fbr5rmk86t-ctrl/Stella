@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saúde & Memórias da Stella 👶</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Georgia,'Times New Roman',serif;background:#f8f4ff;color:#2d1f1f;min-height:100vh}
+  button{font-family:Georgia,serif;cursor:pointer}
+  input,textarea,select{font-family:Georgia,serif}
+  .header{background:linear-gradient(135deg,#e8d5f5,#cde7f8,#d4f0d4);padding:32px 20px 24px;text-align:center;border-bottom:2px solid #ddd0f0}
+  .header h1{font-size:24px;font-weight:700;color:#3d1f1f;margin:8px 0 4px}
+  .header p{font-size:13px;color:#4a1d7a;font-style:italic}
+  .saving{font-size:11px;color:#7a5cb0;margin-top:6px}
+  .tabs{overflow-x:auto;background:#fdfaff;border-bottom:2px solid #ddd0f0;display:flex;min-width:max-content;width:100%}
+  .tab{padding:12px 15px;border:none;background:transparent;border-bottom:3px solid transparent;cursor:pointer;font-size:11px;color:#888;white-space:nowrap;font-family:Georgia,serif}
+  .tab.active{background:#fff;border-bottom-color:#7a5cb0;color:#7a5cb0;font-weight:700}
+  .content{max-width:680px;margin:0 auto;padding:20px 14px 80px}
+  .card{background:#fff;border-radius:12px;border:1.5px solid #e8d8c8;padding:14px;margin-bottom:12px}
+  .chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+  .checkbox{width:20px;height:20px;border-radius:5px;border:2px solid #ddd;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:11px;color:#fff;font-weight:700;transition:all 0.2s}
+  .checkbox.checked{background:#6abf6a;border-color:#6abf6a}
+  .checkbox.round{border-radius:50%}
+  .row{display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px}
+  .input-field{width:100%;padding:9px 12px;border:1.5px solid #e0d0c0;border-radius:9px;font-size:13px;font-family:Georgia,serif;box-sizing:border-box}
+  .btn-primary{padding:11px;background:linear-gradient(135deg,#e8d5f5,#7a5cb0);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;width:100%;cursor:pointer}
+  .section-title{font-size:14px;font-weight:700;color:#3d1f1f;margin-bottom:8px;margin-top:16px}
+  .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:14px}
+  .alerta{background:#fff5f5;border:1.5px solid #f9c5d1;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="loading">
+    <div style="font-size:44px">👶</div>
+    <div style="font-size:16px;color:#7a5cb0;font-weight:700">Carregando Saúde & Memórias...</div>
+    <div style="font-size:13px;color:#bbb">Buscando seus dados ✨</div>
+  </div>
+</div>
+
+<script>
+const BIN_ID  = "6a1a5edaddf5aa59f7772e85";
+const API_KEY = "$2a$10$ZkVpATqG3Rgawpz68Twz6Oj9XcO0sNHdFjh58QL.VUVUtDqRHzx0e";
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const H = {"Content-Type":"application/json","X-Master-Key":API_KEY};
+
+let state = {
+  aba:"posalta",
+  ok:{}, notas:{}, extras:{},
+  vacReg:{}, remedios:[],
+  dosesDadas:{},
+  diario:[], marcosCustom:{}, album:[],
+  rForm:{nome:"",dose:"",unidade:"ml",horarios:["08:00"],dias:["seg","ter","qua","qui","sex","sab","dom"],inicio:"",fim:"",obs:""},
+  addingR:false, addingFoto:false, addingDiario:false,
+  novaFoto:{titulo:"",data:"",desc:"",emoji:"📸"},
+  novaDiario:{titulo:"",semana:"",texto:""},
+  novoMarco:{mes:"0–1 mês",texto:"",data:""},
+  extras:{},
+};
+let saveTimer=null;
+
+async function dbLoad(){
+  try{const r=await fetch(BIN_URL+"/latest",{headers:H});const d=await r.json();return d.record||null;}catch{return null;}
+}
+async function dbSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    showSaving(true);
+    try{
+      const r=await fetch(BIN_URL+"/latest",{headers:H});
+      const d=await r.json();
+      const cur=d.record||{};
+      const toSave={ok:state.ok,notas:state.notas,extras:state.extras,vacReg:state.vacReg,remedios:state.remedios,dosesDadas:state.dosesDadas,diario:state.diario,marcosCustom:state.marcosCustom,album:state.album};
+      await fetch(BIN_URL,{method:"PUT",headers:H,body:JSON.stringify({...cur,...toSave})});
+    }catch{}
+    showSaving(false);
+  },600);
+}
+function showSaving(on){const el=document.getElementById("saving-ind");if(el)el.style.display=on?"block":"none";}
+
+// ── DATA ────────────────────────────────────────────────────────────────────
+const posAlta=[
+  {id:"d1",p:"Dia 1 em casa",e:"🏠",cor:"#f9c5d1",tx:"#7a2d3e",itens:[
+    {n:"Observar icterícia (pele/olhos amarelados) — sinal de alerta",t:"alerta",ob:true},
+    {n:"Verificar respiração: 30–60 rpm em repouso é normal",t:"cuidado",ob:true},
+    {n:"Amamentação: mínimo 8x nas primeiras 24h, verificar pega",t:"cuidado",ob:true},
+    {n:"Fraldas molhadas: mínimo 1–2 no 1º dia",t:"cuidado",ob:true},
+    {n:"Limpar coto umbilical com álcool 70% 2x ao dia",t:"cuidado",ob:true},
+    {n:"Temperatura do quarto: 20–22°C",t:"cuidado",ob:false},
+    {n:"Confirmar BCG e Hepatite B na carteirinha",t:"vacina",ob:true},
+  ]},
+  {id:"d3",p:"Dia 3–5 — Triagem",e:"🧪",cor:"#fde8c8",tx:"#7a4510",itens:[
+    {n:"⭐ TESTE DO PEZINHO — entre 3º e 5º dia (não antes!)",t:"exame",ob:true},
+    {n:"Teste da Orelhinha (OAE)",t:"exame",ob:true},
+    {n:"Teste do Olhinho (reflexo vermelho)",t:"exame",ob:true},
+    {n:"Teste do Coraçãozinho (oximetria)",t:"exame",ob:true},
+    {n:"Bebê perde até 10% do peso — normal até 10 dias",t:"cuidado",ob:false},
+  ]},
+  {id:"d7",p:"Dia 5–7 — 1ª consulta",e:"👩‍⚕️",cor:"#d4f0d4",tx:"#1e5c2e",itens:[
+    {n:"1ª consulta com pediatra (entre 3 e 7 dias)",t:"consulta",ob:true},
+    {n:"Pesagem — verificar recuperação do peso",t:"consulta",ob:true},
+    {n:"Avaliar amamentação com pediatra",t:"consulta",ob:true},
+    {n:"Checar resultados da triagem neonatal",t:"exame",ob:true},
+    {n:"Perguntar sobre vitamina D (indicada a partir de 15 dias)",t:"consulta",ob:false},
+    {n:"Consulta pós-parto da Natalia",t:"consulta",ob:true},
+  ]},
+  {id:"s2",p:"Semana 2",e:"🌸",cor:"#e8d5f5",tx:"#4a1d7a",itens:[
+    {n:"Consulta pediátrica de acompanhamento",t:"consulta",ob:true},
+    {n:"Coto umbilical — cai entre 7–21 dias, limpar até cair",t:"cuidado",ob:true},
+    {n:"Vitamina D: iniciar se pediatra orientar (400 UI/dia)",t:"remedio",ob:false},
+    {n:"Observar primeiro sorriso reflexo",t:"marco",ob:false},
+  ]},
+  {id:"m1",p:"1 Mês",e:"🎂",cor:"#f9c5d1",tx:"#7a2d3e",itens:[
+    {n:"Consulta pediátrica com 1 mês",t:"consulta",ob:true},
+    {n:"Hepatite B — 2ª dose (confirmar esquema)",t:"vacina",ob:true},
+    {n:"Foto do 1 mês com cartazinho 📸",t:"marco",ob:false},
+  ]},
+  {id:"m2",p:"2 Meses",e:"🌿",cor:"#d4f0d4",tx:"#1e5c2e",itens:[
+    {n:"Consulta pediátrica com 2 meses",t:"consulta",ob:true},
+    {n:"💉 Pentavalente (DTP+Hib+HepB) — 1ª dose",t:"vacina",ob:true},
+    {n:"💉 VIP (Polio inativada) — 1ª dose",t:"vacina",ob:true},
+    {n:"💉 Pneumo 10 — 1ª dose",t:"vacina",ob:true},
+    {n:"💉 Rotavírus — 1ª dose (oral)",t:"vacina",ob:true},
+    {n:"Foto do 2 meses 📸",t:"marco",ob:false},
+  ]},
+  {id:"m3",p:"3 Meses",e:"💙",cor:"#cde7f8",tx:"#0d3d6b",itens:[
+    {n:"Consulta pediátrica com 3 meses",t:"consulta",ob:true},
+    {n:"💉 Pentavalente — 2ª dose",t:"vacina",ob:true},
+    {n:"💉 VIP — 2ª dose",t:"vacina",ob:true},
+    {n:"💉 Pneumo 10 — 2ª dose",t:"vacina",ob:true},
+    {n:"💉 Rotavírus — 2ª dose (oral — ÚLTIMA dose!)",t:"vacina",ob:true},
+    {n:"Foto do 3 meses 📸",t:"marco",ob:false},
+  ]},
+  {id:"m6",p:"6 Meses 🎉",e:"🎉",cor:"#f9c5d1",tx:"#7a2d3e",itens:[
+    {n:"Consulta pediátrica com 6 meses",t:"consulta",ob:true},
+    {n:"💉 Influenza (gripe) — 1ª dose",t:"vacina",ob:true},
+    {n:"⭐ INÍCIO DA INTRODUÇÃO ALIMENTAR",t:"marco",ob:true},
+    {n:"Foto do 6 meses — metade do 1º ano! 📸",t:"marco",ob:false},
+  ]},
+];
+
+const tipoIcon={consulta:"👩‍⚕️",exame:"🧪",vacina:"💉",cuidado:"🩺",alerta:"⚠️",marco:"⭐",remedio:"💊"};
+const tipoCor={consulta:"#cde7f8",exame:"#d4f0d4",vacina:"#e8d5f5",cuidado:"#fde8c8",alerta:"#f9c5d1",marco:"#fffbe8",remedio:"#d4f0d4"};
+
+const vacinas=[
+  {n:"BCG",q:"Ao nascer (maternidade)",p:"Tuberculose grave",doses:1,cor:"#f9c5d1"},
+  {n:"Hepatite B",q:"Ao nascer + 1 mês + 6 meses",p:"Hepatite B",doses:3,cor:"#fde8c8"},
+  {n:"Pentavalente (DTP+Hib+HepB)",q:"2, 4 e 6 meses + reforço 15m",p:"Difteria, Tétano, Coqueluche, Meningite Hib, Hep B",doses:4,cor:"#d4f0d4"},
+  {n:"VIP — Polio inativada",q:"2, 4 e 6 meses",p:"Poliomielite",doses:3,cor:"#cde7f8"},
+  {n:"Pneumo 10",q:"2 e 4 meses + reforço 12m",p:"Pneumonia, otite, meningite",doses:3,cor:"#e8d5f5"},
+  {n:"Rotavírus (oral)",q:"2 e 4 meses — sem 3ª dose!",p:"Gastroenterite grave",doses:2,cor:"#fde8c8"},
+  {n:"Meningocócica C",q:"3 e 5 meses + reforço 12m",p:"Meningite C",doses:3,cor:"#f9c5d1"},
+  {n:"Influenza (gripe)",q:"A partir dos 6 meses, anual",p:"Gripe sazonal",doses:"anual",cor:"#d4f0d4"},
+];
+
+const marcos=[
+  {mes:"0–1 mês",e:"🌸",cor:"#f9c5d1",tx:"#7a2d3e",
+   fisica:["Reflexos de sucção, preensão e moro","Prefere rostos humanos","Foca objetos a ~25 cm"],
+   social:["Reconhece a voz da mamãe","Acalma com colo e voz familiar","Primeiros sons guturais"],
+   alerta:["Não suga bem ou perde mais de 10% do peso","Não reage a sons altos","Febre acima de 38°C — emergência"]},
+  {mes:"1–2 meses",e:"🌼",cor:"#fde8c8",tx:"#7a4510",
+   fisica:["Sustenta cabeça por segundos de bruços","Abre e fecha mãos","Pernas mais ativas"],
+   social:["Primeiro sorriso social! 😊","Segue objetos com os olhos","Vocaliza além do choro"],
+   alerta:["Não sorri nem com estímulo aos 2 meses","Olhos que desviam muito","Choro inconsolável por mais de 3h/dia"]},
+  {mes:"2–3 meses",e:"🌿",cor:"#d4f0d4",tx:"#1e5c2e",
+   fisica:["Sustenta bem a cabeça","Tenta virar de lado","Tummy time: levanta cabeça e peito"],
+   social:["Ri alto! 😄","Reconhece as mamães claramente","Imita expressões faciais"],
+   alerta:["Não sustenta cabeça nem com apoio","Não ri com estímulo","Não segura objetos na mão"]},
+  {mes:"3–4 meses",e:"💙",cor:"#cde7f8",tx:"#0d3d6b",
+   fisica:["Rola de barriga para as costas","Agarra e sacode objetos","Leva objetos à boca"],
+   social:["Ri em gargalhada","Reconhece pessoas conhecidas","Adora espelhos"],
+   alerta:["Não tenta alcançar objetos","Não ri nem vocaliza","Cabeça muito instável"]},
+  {mes:"4–6 meses",e:"🌟",cor:"#e8d5f5",tx:"#4a1d7a",
+   fisica:["Senta com apoio","Transfere objeto de uma mão para outra","Empurra com braços estendidos de bruços"],
+   social:["Diz 'bababa'","Reconhece o próprio nome","Curiosidade intensa por tudo","Estranhamento começa"],
+   alerta:["Não senta nem com apoio","Não localiza sons","Não demonstra afeto com cuidadoras"]},
+];
+
+const hojeStr=new Date().toLocaleDateString("pt-BR");
+const hoje=new Date().toLocaleDateString("pt-BR",{weekday:"short"}).replace(".","").toLowerCase().slice(0,3);
+const diasLabel={seg:"Seg",ter:"Ter",qua:"Qua",qui:"Qui",sex:"Sex",sab:"Sáb",dom:"Dom"};
+
+// ── ACTIONS ─────────────────────────────────────────────────────────────────
+function tog(k){state.ok[k]=!state.ok[k];render();dbSave();}
+function setNota(k,v){state.notas[k]=v;dbSave();}
+function addExtra(pid,txt){
+  if(!txt.trim())return;
+  if(!state.extras[pid])state.extras[pid]=[];
+  state.extras[pid].push({id:Date.now(),n:txt,t:"custom"});
+  render();dbSave();
+}
+function addVacDose(nome,data,local,obs){
+  if(!state.vacReg[nome])state.vacReg[nome]=[];
+  state.vacReg[nome].push({data,local,obs});
+  render();dbSave();
+}
+function addRemedio(r){state.remedios.push({...r,id:Date.now(),ativo:true});render();dbSave();}
+function toggleRemedioAtivo(id){
+  state.remedios=state.remedios.map(r=>r.id===id?{...r,ativo:!r.ativo}:r);
+  render();dbSave();
+}
+function removeRemedio(id){state.remedios=state.remedios.filter(r=>r.id!==id);render();dbSave();}
+function marcarDose(rid,h){
+  const k=`${rid}-${hojeStr}-${h}`;
+  state.dosesDadas[k]=!state.dosesDadas[k];
+  render();dbSave();
+}
+function addDiario(titulo,semana,texto){
+  if(!texto.trim())return;
+  state.diario.unshift({id:Date.now(),titulo:titulo||"Momento especial",semana,texto,data:hojeStr});
+  state.addingDiario=false;render();dbSave();
+}
+function addMarco(mes,texto,data){
+  if(!texto.trim())return;
+  if(!state.marcosCustom[mes])state.marcosCustom[mes]=[];
+  state.marcosCustom[mes].push({id:Date.now(),texto,data});
+  render();dbSave();
+}
+function addFoto(titulo,data,desc,emoji){
+  if(!titulo.trim())return;
+  state.album.unshift({id:Date.now(),titulo,data:data||hojeStr,desc,emoji});
+  state.addingFoto=false;render();dbSave();
+}
+function setAba(a){state.aba=a;render();}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+function render(){
+  document.getElementById("app").innerHTML=buildApp();
+}
+
+function buildApp(){
+  const abas=[
+    {id:"posalta",l:"📋 Pós-Alta"},{id:"vacinas",l:"💉 Vacinas"},
+    {id:"remedios",l:"💊 Remédios"},{id:"marcos",l:"⭐ Marcos"},
+    {id:"diario",l:"📖 Diário"},{id:"album",l:"📸 Álbum"},
+  ];
+  return `
+    <div class="header">
+      <div style="font-size:38px">👶</div>
+      <h1>Saúde & Memórias da Stella</h1>
+      <p>Do nascimento aos 6 meses — e além</p>
+      <div id="saving-ind" class="saving" style="display:none">💾 Salvando...</div>
+    </div>
+    <div class="tabs">
+      ${abas.map(a=>`<button class="tab${state.aba===a.id?" active":""}" onclick="setAba('${a.id}')">${a.l}</button>`).join("")}
+    </div>
+    <div class="content">
+      ${state.aba==="posalta"?buildPosAlta():""}
+      ${state.aba==="vacinas"?buildVacinas():""}
+      ${state.aba==="remedios"?buildRemedios():""}
+      ${state.aba==="marcos"?buildMarcos():""}
+      ${state.aba==="diario"?buildDiario():""}
+      ${state.aba==="album"?buildAlbum():""}
+    </div>`;
+}
+
+function buildPosAlta(){
+  return posAlta.map(p=>{
+    const ext=state.extras[p.id]||[];
+    const all=[...p.itens,...ext.map(e=>({n:e.n,t:"custom",ob:false,_id:e.id}))];
+    const done=all.filter(i=>state.ok[`pa-${p.id}-${i.n}`]).length;
+    return `<div style="margin-bottom:20px">
+      <div style="background:${p.cor};border-radius:12px 12px 0 0;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:14px;font-weight:700;color:${p.tx}">${p.e} ${p.p}</span>
+        <span style="font-size:11px;color:${p.tx};opacity:0.8">${done}/${all.length}</span>
+      </div>
+      <div style="border:1.5px solid ${p.cor};border-top:none;border-radius:0 0 12px 12px;overflow:hidden">
+        ${all.map(it=>{
+          const k=`pa-${p.id}-${it.n}`;const ch=!!state.ok[k];
+          const nk=`nota-${k}`;
+          return `<div style="border-bottom:1px solid #f5ede5;background:${ch?"#f5fbf5":"#fff"}">
+            <div class="row" onclick="tog('${k}')">
+              <div class="checkbox${ch?" checked":""}">✓</div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span style="font-size:12px;text-decoration:${ch?"line-through":"none"};color:${ch?"#aaa":"#2d1f1f"}">${it.n}</span>
+                  ${it.t&&it.t!=="custom"?`<span class="chip" style="background:${tipoCor[it.t]||"#eee"};color:#555">${tipoIcon[it.t]} ${it.t}</span>`:""}
+                  ${it.ob&&!ch?`<span class="chip" style="background:#f9c5d1;color:#7a2d3e">OBRIGATÓRIO</span>`:""}
+                </div>
+              </div>
+            </div>
+            <div style="padding:0 14px 10px 44px">
+              <input placeholder="+ anotar data / observação" value="${(state.notas[nk]||"").replace(/"/g,"&quot;")}" onchange="setNota('${nk}',this.value)" style="width:100%;padding:4px 9px;border:1px dashed #ddd;border-radius:7px;font-size:11px;font-family:Georgia,serif;color:#7a5cb0">
+            </div>
+          </div>`;
+        }).join("")}
+        <div style="padding:10px 14px;background:#fdfbf8">
+          <input placeholder="+ adicionar item neste período" onkeydown="if(event.key==='Enter'&&this.value.trim()){addExtra('${p.id}',this.value.trim());this.value=''}" style="width:100%;padding:7px 10px;border:1px dashed #ddd;border-radius:8px;font-size:12px;font-family:Georgia,serif;color:#aaa">
+          <div style="font-size:10px;color:#ccc;margin-top:3px">Pressione Enter para adicionar</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function buildVacinas(){
+  return `
+    <div style="background:#e8d5f5;border-radius:12px;padding:13px;margin-bottom:18px;font-size:12px;color:#4a1d7a;line-height:1.65">
+      💉 Registre data, local e dose de cada vacina. Confirme o esquema com a pediatra.
+    </div>
+    ${vacinas.map(v=>{
+      const reg=state.vacReg[v.n]||[];
+      const done=reg.length;
+      const dosesN=typeof v.doses==="number"?v.doses:"?";
+      return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+        <div style="background:${v.cor};padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;font-weight:700">💉 ${v.n}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;background:rgba(255,255,255,0.6);padding:2px 8px;border-radius:10px;color:#555">${done}/${dosesN}</span>
+            ${done>=dosesN&&typeof dosesN==="number"?`<span style="font-size:10px;background:#6abf6a;color:#fff;padding:2px 8px;border-radius:10px;font-weight:700">✓ Completa</span>`:""}
+          </div>
+        </div>
+        <div style="padding:12px 14px">
+          <div style="font-size:11px;color:#888;margin-bottom:3px">🕐 ${v.q}</div>
+          <div style="font-size:11px;color:#888;margin-bottom:10px">🛡️ ${v.p}</div>
+          ${reg.map((r,i)=>`<div style="background:#f0f8f0;border:1.5px solid #6abf6a;border-radius:9px;padding:9px 12px;margin-bottom:7px">
+            <div style="font-size:11px;font-weight:700;color:#1e5c2e;margin-bottom:4px">✅ Dose ${i+1}</div>
+            ${r.data?`<div style="font-size:11px;color:#555">📅 ${r.data}</div>`:""}
+            ${r.local?`<div style="font-size:11px;color:#555">📍 ${r.local}</div>`:""}
+            ${r.obs?`<div style="font-size:11px;color:#888">📝 ${r.obs}</div>`:""}
+          </div>`).join("")}
+          <div id="vac-form-${v.n.replace(/\W/g,"_")}" style="display:none;margin-top:8px">
+            <input id="vd-${v.n.replace(/\W/g,"_")}" placeholder="Data (ex: 15/03/2025)" class="input-field" style="margin-bottom:7px">
+            <input id="vl-${v.n.replace(/\W/g,"_")}" placeholder="Local (UBS, hospital...)" class="input-field" style="margin-bottom:7px">
+            <input id="vo-${v.n.replace(/\W/g,"_")}" placeholder="Observações (lote, reação...)" class="input-field" style="margin-bottom:10px">
+            <div style="display:flex;gap:7px">
+              <button onclick="addVacDose('${v.n}',document.getElementById('vd-${v.n.replace(/\W/g,"_")}').value,document.getElementById('vl-${v.n.replace(/\W/g,"_")}').value,document.getElementById('vo-${v.n.replace(/\W/g,"_")}').value);document.getElementById('vac-form-${v.n.replace(/\W/g,"_")}').style.display='none'" style="flex:1;padding:8px;background:#7a5cb0;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">Salvar dose</button>
+              <button onclick="document.getElementById('vac-form-${v.n.replace(/\W/g,"_")}').style.display='none'" style="padding:8px 12px;background:#eee;border:none;border-radius:8px;font-size:12px;cursor:pointer">Cancelar</button>
+            </div>
+          </div>
+          <button onclick="document.getElementById('vac-form-${v.n.replace(/\W/g,"_")}').style.display='block'" style="width:100%;padding:8px;background:none;border:1.5px dashed #c8a8e0;border-radius:10px;font-size:12px;color:#7a5cb0;cursor:pointer;margin-top:4px">+ registrar dose aplicada</button>
+        </div>
+      </div>`;
+    }).join("")}`;
+}
+
+function buildRemedios(){
+  const hoje_dia=hoje;
+  const remediosHoje=state.remedios.filter(r=>r.ativo&&(r.dias||[]).includes(hoje_dia));
+  return `
+    <div style="background:linear-gradient(135deg,#d4f0d4,#a8d8a8);border-radius:14px;padding:16px;margin-bottom:18px;text-align:center">
+      <div style="font-size:28px;margin-bottom:4px">💊</div>
+      <div style="font-size:15px;font-weight:700;color:#1e5c2e">Controle de Remédios</div>
+      <div style="font-size:12px;color:#1e5c2e;font-style:italic;margin-top:4px">Horários e doses da Stella</div>
+    </div>
+    ${remediosHoje.length?`<div style="background:#fff;border:2px solid #6abf6a;border-radius:14px;padding:16px;margin-bottom:18px">
+      <div style="font-size:13px;font-weight:700;color:#1e5c2e;margin-bottom:12px">✅ Doses de hoje — ${hojeStr}</div>
+      ${remediosHoje.map(r=>`<div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px">💊 ${r.nome}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${(r.horarios||[""]).map(h=>{
+            const dada=!!state.dosesDadas[`${r.id}-${hojeStr}-${h}`];
+            return `<button onclick="marcarDose(${r.id},'${h}')" style="padding:10px 14px;border-radius:10px;border:2px solid ${dada?"#4a9f4a":"#c8e8c8"};background:${dada?"#6abf6a":"#f0f8f0"};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:65px">
+              <span style="font-size:16px">${dada?"✅":"⏰"}</span>
+              <span style="font-size:13px;font-weight:700;color:${dada?"#fff":"#1e5c2e"}">${h}</span>
+              <span style="font-size:10px;color:${dada?"#d0f0d0":"#888"}">${r.dose||""} ${r.unidade||""}</span>
+            </button>`;
+          }).join("")}
+        </div>
+      </div>`).join("")}
+    </div>`:""}
+    ${state.remedios.length?`<div style="margin-bottom:18px">
+      <div class="section-title" style="margin-top:0">💊 Remédios cadastrados</div>
+      ${state.remedios.map(r=>`<div class="card" style="border-color:${r.ativo?"#a8d8a8":"#e0e0e0"};margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <span style="font-size:14px;font-weight:700;color:${r.ativo?"#1e5c2e":"#888"}">💊 ${r.nome}</span>
+          <div style="display:flex;gap:6px">
+            <button onclick="toggleRemedioAtivo(${r.id})" style="font-size:10px;padding:3px 9px;border-radius:10px;border:none;background:${r.ativo?"#eee":"#6abf6a"};color:${r.ativo?"#888":"#fff"};font-weight:600;cursor:pointer">${r.ativo?"pausar":"ativar"}</button>
+            <button onclick="removeRemedio(${r.id})" style="background:none;border:none;color:#ddd;font-size:15px;cursor:pointer">✕</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          ${(r.horarios||[]).map(h=>`<span style="background:#e8d5f5;color:#4a1d7a;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700">🕐 ${h}</span>`).join("")}
+        </div>
+        ${r.dose?`<div style="font-size:12px;color:#555">📏 ${r.dose} ${r.unidade||""}</div>`:""}
+        ${(r.dias||[]).length<7?`<div style="font-size:12px;color:#555">📅 ${(r.dias||[]).map(d=>diasLabel[d]).join(", ")}</div>`:`<div style="font-size:12px;color:#555">📅 Todos os dias</div>`}
+        ${r.inicio||r.fim?`<div style="font-size:12px;color:#555">🗓️ ${r.inicio||"?"} até ${r.fim||"?"}</div>`:""}
+        ${r.obs?`<div style="font-size:11px;color:#888;font-style:italic;margin-top:4px">📝 ${r.obs}</div>`:""}
+      </div>`).join("")}
+    </div>`:""}
+    ${state.addingR?buildFormRemedio():`<button onclick="state.addingR=true;render()" style="width:100%;padding:13px;background:linear-gradient(135deg,#d4f0d4,#a8d8a8);color:#1e5c2e;border:1.5px solid #a8d8a8;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer">+ Cadastrar novo remédio</button>`}`;
+}
+
+function buildFormRemedio(){
+  const dias=["seg","ter","qua","qui","sex","sab","dom"];
+  const rf=state.rForm||{nome:"",dose:"",unidade:"ml",horarios:["08:00"],dias:["seg","ter","qua","qui","sex","sab","dom"],inicio:"",fim:"",obs:""};
+  return `<div style="background:#fff;border:1.5px solid #a8d8a8;border-radius:14px;padding:16px;margin-top:10px">
+    <div style="font-size:14px;font-weight:700;color:#1e5c2e;margin-bottom:14px">+ Cadastrar remédio</div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:#777;margin-bottom:4px;font-weight:600">Nome do remédio *</div>
+      <input id="rf-nome" class="input-field" placeholder="Ex: Vitamina D3, Paracetamol..." value="${rf.nome||""}">
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="flex:1"><div style="font-size:11px;color:#777;margin-bottom:4px;font-weight:600">Dose</div>
+        <input id="rf-dose" class="input-field" placeholder="Ex: 0,5" value="${rf.dose||""}"></div>
+      <div style="width:100px"><div style="font-size:11px;color:#777;margin-bottom:4px;font-weight:600">Unidade</div>
+        <select id="rf-unidade" style="width:100%;padding:9px 8px;border:1.5px solid #e0d0c0;border-radius:9px;font-size:13px;font-family:Georgia,serif;background:#fff">
+          ${["ml","gotas","UI","mg","comprimido"].map(u=>`<option${u===(rf.unidade||"ml")?" selected":""}>${u}</option>`).join("")}
+        </select></div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:#777;margin-bottom:4px;font-weight:600">Horários</div>
+      <div id="horarios-container">
+        ${(rf.horarios||["08:00"]).map((h,i)=>`<div style="display:flex;gap:7px;margin-bottom:7px"><input type="time" class="rf-h" value="${h}" style="flex:1;padding:8px 10px;border:1.5px solid #c8e8c8;border-radius:9px;font-size:13px;font-family:Georgia,serif"></div>`).join("")}
+      </div>
+      <button onclick="document.getElementById('horarios-container').insertAdjacentHTML('beforeend','<div style=\\'display:flex;gap:7px;margin-bottom:7px\\'><input type=\\'time\\' class=\\'rf-h\\' value=\\'08:00\\' style=\\'flex:1;padding:8px 10px;border:1.5px solid #c8e8c8;border-radius:9px;font-size:13px;font-family:Georgia,serif\\'></div>')" style="width:100%;padding:7px;background:none;border:1.5px dashed #a8d8a8;border-radius:9px;font-size:12px;color:#1e5c2e;cursor:pointer">+ adicionar horário</button>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:#777;margin-bottom:6px;font-weight:600">Dias da semana</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="dias-container">
+        ${dias.map(d=>`<button onclick="this.classList.toggle('dia-sel');this.style.background=this.classList.contains('dia-sel')?'#6abf6a':'#f0f0f0';this.style.color=this.classList.contains('dia-sel')?'#fff':'#888'" class="dia-sel" style="padding:7px 11px;border-radius:20px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:#6abf6a;color:#fff" data-dia="${d}">${diasLabel[d]}</button>`).join("")}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="flex:1"><div style="font-size:11px;color:#777;margin-bottom:4px;font-weight:600">Início</div><input id="rf-ini" type="date" class="input-field" value="${rf.inicio||""}"></div>
+      <div style="flex:1"><div style="font-size:11px;color:#777;margin-bottom:4px;font-weight:600">Fim</div><input id="rf-fim" type="date" class="input-field" value="${rf.fim||""}"></div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:#777;margin-bottom:4px;font-weight:600">Observações</div>
+      <input id="rf-obs" class="input-field" placeholder="Ex: Dar após mamar, guardar na geladeira..." value="${rf.obs||""}">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="
+        const nome=document.getElementById('rf-nome').value;
+        if(!nome.trim())return;
+        const hrs=Array.from(document.querySelectorAll('.rf-h')).map(i=>i.value).filter(v=>v);
+        const ds=Array.from(document.querySelectorAll('#dias-container .dia-sel')).map(b=>b.dataset.dia);
+        addRemedio({nome,dose:document.getElementById('rf-dose').value,unidade:document.getElementById('rf-unidade').value,horarios:hrs.length?hrs:['08:00'],dias:ds,inicio:document.getElementById('rf-ini').value,fim:document.getElementById('rf-fim').value,obs:document.getElementById('rf-obs').value});
+        state.addingR=false;
+      " style="flex:1;padding:11px;background:linear-gradient(135deg,#6abf6a,#1e5c2e);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">💊 Cadastrar</button>
+      <button onclick="state.addingR=false;render()" style="padding:11px 14px;background:#eee;border:none;border-radius:10px;font-size:12px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+function buildMarcos(){
+  return `
+    <div style="background:#fffbe8;border:1.5px solid #e8d878;border-radius:12px;padding:13px;margin-bottom:18px;font-size:12px;color:#7a6010;line-height:1.65">
+      ⭐ Marque os marcos que a Stella conquistou e adicione os seus próprios momentos especiais.
+    </div>
+    ${marcos.map(fase=>{
+      const custom=state.marcosCustom[fase.mes]||[];
+      return `<div style="margin-bottom:24px">
+        <div style="background:${fase.cor};border-radius:12px;padding:13px;margin-bottom:10px">
+          <div style="font-size:16px;font-weight:700;color:${fase.tx}">${fase.e} ${fase.mes}</div>
+        </div>
+        <div class="section-title" style="font-size:12px;margin-top:0">🏃 Físico & Motor</div>
+        ${fase.fisica.map(it=>{const k=`m-${fase.mes}-f-${it}`;const ch=!!state.ok[k];return `<div class="row" onclick="tog('${k}')" style="background:${ch?"#f0f8f0":"#fff"};border:1.5px solid ${ch?"#6abf6a":"#e8d8c8"};border-radius:9px;margin-bottom:5px"><div class="checkbox round${ch?" checked":""}">✓</div><span style="font-size:12px;text-decoration:${ch?"line-through":"none"};color:${ch?"#aaa":"#2d1f1f"};flex:1">${it}</span>${ch?`<span style="font-size:10px;color:#6abf6a">✨</span>`:""}</div>`;}).join("")}
+        <div class="section-title" style="font-size:12px">💬 Social & Comunicação</div>
+        ${fase.social.map(it=>{const k=`m-${fase.mes}-s-${it}`;const ch=!!state.ok[k];return `<div class="row" onclick="tog('${k}')" style="background:${ch?"#f0f8f0":"#fff"};border:1.5px solid ${ch?"#6abf6a":"#e8d8c8"};border-radius:9px;margin-bottom:5px"><div class="checkbox round${ch?" checked":""}">✓</div><span style="font-size:12px;text-decoration:${ch?"line-through":"none"};color:${ch?"#aaa":"#2d1f1f"};flex:1">${it}</span>${ch?`<span style="font-size:10px;color:#6abf6a">✨</span>`:""}</div>`;}).join("")}
+        <div class="alerta">
+          <div style="font-size:11px;font-weight:700;color:#7a2d3e;margin-bottom:4px">⚠️ Checar com a pediatra</div>
+          ${fase.alerta.map(a=>`<div style="font-size:11px;color:#7a2d3e;margin-bottom:3px">• ${a}</div>`).join("")}
+        </div>
+        ${custom.length?`<div class="section-title" style="font-size:12px">🌟 Marcos especiais de vocês</div>
+        ${custom.map(c=>`<div style="background:#fffbe8;border:1.5px solid #e8d878;border-radius:9px;padding:10px 12px;margin-bottom:5px">
+          <div style="font-size:12px;color:#7a6010">⭐ ${c.texto}</div>
+          ${c.data?`<div style="font-size:10px;color:#aaa;margin-top:2px">📅 ${c.data}</div>`:""}
+        </div>`).join("")}`:""}
+        <div style="background:#fafaf8;border:1px dashed #ddd;border-radius:10px;padding:12px">
+          <div style="font-size:11px;color:#aaa;margin-bottom:7px">+ adicionar marco especial</div>
+          <input id="mc-${fase.mes.replace(/\W/g,"_")}" class="input-field" placeholder="Ex: Primeiro sorriso para a mamãe 💛" style="margin-bottom:7px">
+          <div style="display:flex;gap:7px">
+            <input id="mcd-${fase.mes.replace(/\W/g,"_")}" class="input-field" placeholder="Data (opcional)" style="margin-bottom:0">
+            <button onclick="addMarco('${fase.mes}',document.getElementById('mc-${fase.mes.replace(/\W/g,"_")}').value,document.getElementById('mcd-${fase.mes.replace(/\W/g,"_")}').value);document.getElementById('mc-${fase.mes.replace(/\W/g,"_")}').value='';document.getElementById('mcd-${fase.mes.replace(/\W/g,"_")}').value=''" style="padding:9px 14px;background:${fase.cor};color:${fase.tx};border:1.5px solid ${fase.tx}40;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Salvar</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("")}`;
+}
+
+function buildDiario(){
+  return `
+    <div style="background:linear-gradient(135deg,#fde8c8,#f9c5d1);border-radius:14px;padding:16px;margin-bottom:18px;text-align:center">
+      <div style="font-size:28px;margin-bottom:4px">📖</div>
+      <div style="font-size:14px;font-weight:700;color:#7a2d3e">Diário da Gravidez</div>
+      <div style="font-size:12px;color:#7a4510;font-style:italic;margin-top:4px">Para a Stella ler um dia 🌸</div>
+    </div>
+    ${state.addingDiario?`<div class="card" style="margin-bottom:16px">
+      <input id="dt" class="input-field" placeholder="Título (ex: O dia que senti você se mexer)" style="margin-bottom:9px;font-weight:600;font-size:14px">
+      <input id="ds" class="input-field" placeholder="Semana da gravidez (ex: 28)" style="margin-bottom:9px">
+      <textarea id="dtx" rows="5" class="input-field" placeholder="O que você está sentindo hoje? O que quer contar para a Stella?" style="resize:vertical;line-height:1.65"></textarea>
+      <button onclick="addDiario(document.getElementById('dt').value,document.getElementById('ds').value,document.getElementById('dtx').value)" style="width:100%;margin-top:10px;padding:11px;background:linear-gradient(135deg,#f9c5d1,#c06080);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">Salvar entrada 🌸</button>
+      <button onclick="state.addingDiario=false;render()" style="width:100%;margin-top:8px;padding:9px;background:#eee;border:none;border-radius:10px;font-size:13px;cursor:pointer">Cancelar</button>
+    </div>`:`<button onclick="state.addingDiario=true;render()" style="width:100%;padding:13px;background:linear-gradient(135deg,#fde8c8,#f9c5d1);color:#7a2d3e;border:1.5px solid #f0c8b8;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px">+ Escrever nova entrada 🌸</button>`}
+    ${state.diario.length?state.diario.map(e=>`<div class="card" style="border-color:#f0d8c8;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div style="font-size:14px;font-weight:700;color:#7a2d3e">${e.titulo}</div>
+        <div style="text-align:right"><div style="font-size:10px;color:#bbb">${e.data}</div>${e.semana?`<div style="font-size:10px;color:#c06080;font-weight:600">sem. ${e.semana}</div>`:""}</div>
+      </div>
+      <div style="font-size:13px;color:#555;line-height:1.75;white-space:pre-wrap">${e.texto}</div>
+    </div>`).join(""):`<div style="text-align:center;padding:40px 20px;color:#ccc;font-size:13px"><div style="font-size:36px;margin-bottom:10px">✨</div>Sua primeira entrada vai aparecer aqui.</div>`}`;
+}
+
+function buildAlbum(){
+  const sugestoes=["🌸 Na maternidade — primeiras horas de vida","👋 Mãozinha segurando o seu dedo","🛁 Primeiro banho","😴 Dormindo no colo das mamães","👩‍👩‍👧 Foto das três juntas na primeira semana","🌙 A mamãe de plantão noturno","😊 Primeiro sorriso de verdade","🎂 1 mês com cartazinho","🎂 2 meses com cartazinho","🎂 3 meses com cartazinho","🎉 6 meses — metade do primeiro ano!","📏 Comparação de tamanho com objeto"];
+  return `
+    <div style="background:linear-gradient(135deg,#cde7f8,#e8d5f5);border-radius:14px;padding:16px;margin-bottom:18px;text-align:center">
+      <div style="font-size:28px;margin-bottom:4px">📸</div>
+      <div style="font-size:14px;font-weight:700;color:#0d3d6b">Álbum de Marcos da Stella</div>
+      <div style="font-size:12px;color:#4a1d7a;font-style:italic;margin-top:4px">Registre os momentos que você nunca quer esquecer</div>
+    </div>
+    <div class="card" style="margin-bottom:18px;border-color:#f0d8c8">
+      <div style="font-size:12px;font-weight:700;color:#7a4510;margin-bottom:10px">📷 Fotos para não deixar passar</div>
+      ${sugestoes.map(s=>{const k=`sug-${s}`;const ch=!!state.ok[k];return `<div class="row" onclick="tog('${k}')" style="padding:7px 0;border-bottom:1px solid #f5ede5"><div class="checkbox${ch?" checked":""}">✓</div><span style="font-size:12px;text-decoration:${ch?"line-through":"none"};color:${ch?"#aaa":"#555"}">${s}</span></div>`;}).join("")}
+    </div>
+    ${state.addingFoto?`<div class="card" style="margin-bottom:16px;border-color:#c8d8f0">
+      <div style="font-size:13px;font-weight:700;color:#0d3d6b;margin-bottom:12px">✨ Registrar marco</div>
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        ${["📸","🌸","😊","🍼","🛁","🎂","💛","⭐","🌙","👶","💜","🎉"].map(e=>`<button onclick="document.getElementById('ef').value='${e}';document.querySelectorAll('.emoji-btn').forEach(b=>b.style.background='transparent');this.style.background='#e8d5f5'" class="emoji-btn" style="font-size:20px;background:transparent;border:2px solid transparent;border-radius:8px;padding:4px;cursor:pointer">${e}</button>`).join("")}
+      </div>
+      <input id="ef" value="📸" style="display:none">
+      <input id="ft" class="input-field" placeholder="Título (ex: Primeiro sorriso! 😊)" style="margin-bottom:9px;font-weight:600">
+      <input id="fd" class="input-field" placeholder="Data (ex: 15/03/2025)" style="margin-bottom:9px">
+      <textarea id="fdesc" rows="3" class="input-field" placeholder="O que aconteceu? O que você sentiu?" style="resize:none;line-height:1.6"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button onclick="addFoto(document.getElementById('ft').value,document.getElementById('fd').value,document.getElementById('fdesc').value,document.getElementById('ef').value)" style="flex:1;padding:10px;background:linear-gradient(135deg,#cde7f8,#7a5cb0);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer">Salvar marco ⭐</button>
+        <button onclick="state.addingFoto=false;render()" style="padding:10px 14px;background:#eee;border:none;border-radius:9px;font-size:12px;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`:`<button onclick="state.addingFoto=true;render()" style="width:100%;padding:13px;background:linear-gradient(135deg,#cde7f8,#e8d5f5);color:#0d3d6b;border:1.5px solid #a8c8e8;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px">+ Registrar novo marco ⭐</button>`}
+    ${state.album.length?state.album.map(f=>`<div class="card" style="border-color:#e0d0f0;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div style="display:flex;gap:8px;align-items:center"><span style="font-size:24px">${f.emoji}</span><div style="font-size:14px;font-weight:700;color:#4a1d7a">${f.titulo}</div></div>
+        <div style="font-size:10px;color:#bbb;flex-shrink:0">${f.data}</div>
+      </div>
+      ${f.desc?`<div style="font-size:12px;color:#666;line-height:1.7;font-style:italic">${f.desc}</div>`:""}
+    </div>`).join(""):`<div style="text-align:center;padding:30px 20px;color:#ccc;font-size:13px"><div style="font-size:34px;margin-bottom:10px">📸</div>Seus marcos vão aparecer aqui.</div>`}`;
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+(async()=>{
+  const d=await dbLoad();
+  if(d){
+    if(d.ok)           state.ok=d.ok;
+    if(d.notas)        state.notas=d.notas;
+    if(d.extras)       state.extras=d.extras;
+    if(d.vacReg)       state.vacReg=d.vacReg;
+    if(d.remedios)     state.remedios=d.remedios;
+    if(d.dosesDadas)   state.dosesDadas=d.dosesDadas;
+    if(d.diario)       state.diario=d.diario;
+    if(d.marcosCustom) state.marcosCustom=d.marcosCustom;
+    if(d.album)        state.album=d.album;
+  }
+  render();
+})();
+</script>
+</body>
+</html>

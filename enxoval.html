@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual da Stella 🌟</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Georgia,'Times New Roman',serif;background:#fdf8f4;color:#2d1f1f;min-height:100vh}
+  button{font-family:Georgia,serif;cursor:pointer}
+  input,textarea,select{font-family:Georgia,serif}
+  .header{background:linear-gradient(135deg,#f9c5d1,#fde8c8,#d4f0d4);padding:32px 20px 24px;text-align:center;border-bottom:2px solid #f0e0d0}
+  .header h1{font-size:26px;font-weight:700;color:#3d1f1f;margin:8px 0 4px}
+  .header p{font-size:13px;color:#7a4510;font-style:italic}
+  .saving{font-size:11px;color:#c06080;margin-top:6px}
+  .tabs{overflow-x:auto;background:#fff8f4;border-bottom:2px solid #f0e0d0;display:flex;min-width:max-content;width:100%}
+  .tab{padding:12px 15px;border:none;background:transparent;border-bottom:3px solid transparent;cursor:pointer;font-size:11px;color:#888;white-space:nowrap;font-family:Georgia,serif}
+  .tab.active{background:#fff;border-bottom-color:#c06080;color:#c06080;font-weight:700}
+  .content{max-width:680px;margin:0 auto;padding:20px 14px 80px}
+  .card{background:#fff;border-radius:12px;border:1.5px solid #e8d8c8;padding:14px;margin-bottom:12px}
+  .chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700}
+  .progress-bar{height:7px;background:#f0e0d0;border-radius:4px;overflow:hidden;margin-top:8px}
+  .progress-fill{height:100%;border-radius:4px;transition:width 0.4s;background:linear-gradient(90deg,#f9c5d1,#c06080)}
+  .checkbox{width:21px;height:21px;border-radius:5px;border:2px solid #ddd;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:12px;color:#fff;font-weight:700;transition:all 0.2s}
+  .checkbox.checked{background:#6abf6a;border-color:#6abf6a}
+  .checkbox.round{border-radius:50%}
+  .row{display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px}
+  .row:hover{background:#fafaf8}
+  .mini-btn{background:none;border:1px dashed #ddd;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;font-family:Georgia,serif}
+  .qty-ctrl{display:flex;align-items:center;gap:8px;background:#f8f8f8;border-radius:10px;padding:10px 12px}
+  .qty-btn{width:32px;height:32px;border-radius:50%;border:1.5px solid #ddd;background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+  .section-title{font-size:15px;font-weight:700;color:#3d1f1f;margin-bottom:8px}
+  .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:14px}
+  .fase-btn{flex-shrink:0;padding:10px 13px;border-radius:20px;border:2px solid #e8d8c8;background:#fff;color:#888;cursor:pointer;font-size:11px;font-family:Georgia,serif;text-align:center}
+  .fases-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:18px}
+  .input-field{width:100%;padding:9px 12px;border:1.5px solid #e0d0c0;border-radius:9px;font-size:13px;font-family:Georgia,serif;box-sizing:border-box}
+  .btn-primary{padding:11px;background:linear-gradient(135deg,#f9c5d1,#c06080);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;width:100%;cursor:pointer;font-family:Georgia,serif}
+  .btn-add{width:100%;padding:13px;background:linear-gradient(135deg,#f0e8ff,#e8d5f5);color:#4a1d7a;border:1.5px dashed #c8a8e0;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Georgia,serif}
+  .peca-custom{background:#fff;border:1.5px solid #d0c8f0;border-radius:12px;padding:13px 14px;margin-bottom:10px;position:relative}
+  .remove-btn{position:absolute;top:10px;right:10px;background:none;border:none;font-size:14px;color:#ddd;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="loading">
+    <div style="font-size:44px">🌟</div>
+    <div style="font-size:16px;color:#c06080;font-weight:700">Carregando o Manual da Stella...</div>
+    <div style="font-size:13px;color:#bbb">Buscando seus dados ✨</div>
+  </div>
+</div>
+
+<script>
+const BIN_ID  = "6a1a5e5221f9ee59d29c9263";
+const API_KEY = "$2a$10$ZkVpATqG3Rgawpz68Twz6Oj9XcO0sNHdFjh58QL.VUVUtDqRHzx0e";
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const H = {"Content-Type":"application/json","X-Master-Key":API_KEY};
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let state = {
+  aba:"roupas", fase:"nascimento",
+  checados:{}, gastos:{}, semana:28,
+  tarefaCustom:[], compradas:{}, pecasCustom:{}
+};
+let saveTimer = null;
+
+// ── DB ─────────────────────────────────────────────────────────────────────
+async function dbLoad() {
+  try {
+    const r = await fetch(BIN_URL+"/latest",{headers:H});
+    const d = await r.json();
+    return d.record||null;
+  } catch{return null;}
+}
+async function dbSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async()=>{
+    showSaving(true);
+    try{
+      const r = await fetch(BIN_URL+"/latest",{headers:H});
+      const d = await r.json();
+      const cur = d.record||{};
+      await fetch(BIN_URL,{method:"PUT",headers:H,body:JSON.stringify({...cur,...state})});
+    }catch{}
+    showSaving(false);
+  },600);
+}
+function showSaving(on){
+  const el=document.getElementById("saving-indicator");
+  if(el) el.style.display=on?"block":"none";
+}
+
+// ── DATA ────────────────────────────────────────────────────────────────────
+const fases=[
+  {id:"nascimento",label:"Nascimento",sub:"0–1 mês • RN",cor:"#f9c5d1",tx:"#7a2d3e",emoji:"🌸",aviso:"Compre pouquíssimo! Bebês crescem rápido.",
+   roupas:[{n:"Body manga curta",q:6,d:"Branco ou neutro"},{n:"Body manga longa",q:4,d:"Para noites frias"},{n:"Macacão com pézinho",q:4,d:"Prático para trocar"},{n:"Calça legging suave",q:3,d:"Sem elástico apertado"},{n:"Casaquinho/cardigan",q:2,d:"Para regular temperatura"},{n:"Touca",q:3,d:"Hospitalar + em casa"},{n:"Luva anti-arranhão",q:3,d:"Perde fácil, tenha reserva"},{n:"Meia",q:6,d:"Somem na máquina!"},{n:"Saída de maternidade",q:1,d:"Conjunto especial"}]},
+  {id:"mes1a3",label:"1–3 meses",sub:"P • ~4–6 kg",cor:"#fde8c8",tx:"#7a4510",emoji:"🌼",aviso:"A fase mais usada! Vale investir mais aqui.",
+   roupas:[{n:"Body manga curta",q:7,d:"Principal peça do dia"},{n:"Body manga longa",q:5,d:""},{n:"Macacão com pézinho",q:5,d:""},{n:"Calça legging",q:4,d:""},{n:"Vestidinho",q:3,d:"Body embaixo"},{n:"Casaquinho",q:2,d:""},{n:"Meia",q:8,d:""},{n:"Pijama/macacão dormir",q:4,d:"Abertura fácil"}]},
+  {id:"mes3a6",label:"3–6 meses",sub:"M • ~6–8 kg",cor:"#d4f0d4",tx:"#1e5c2e",emoji:"🌿",aviso:"Fase de descobertas! Prefira roupas confortáveis.",
+   roupas:[{n:"Body manga curta",q:7,d:""},{n:"Body manga longa",q:4,d:""},{n:"Macacão sem pézinho",q:4,d:"Ela quer mexer os pés!"},{n:"Conjunto top+calça",q:4,d:""},{n:"Vestidinho",q:3,d:""},{n:"Shorts/bermuda",q:3,d:"Para verão"},{n:"Casaquinho leve",q:2,d:""},{n:"Meia",q:8,d:""},{n:"Pijama",q:4,d:""}]},
+  {id:"mes6a9",label:"6–9 meses",sub:"G • ~8–10 kg",cor:"#cde7f8",tx:"#0d3d6b",emoji:"💙",aviso:"Espere o 6º mês para comprar — o tamanho varia.",
+   roupas:[{n:"Body manga curta",q:6,d:""},{n:"Conjunto top+calça",q:5,d:""},{n:"Vestidinho",q:3,d:""},{n:"Shorts/bermuda",q:3,d:""},{n:"Casaquinho",q:2,d:""},{n:"Meia",q:6,d:""},{n:"Pijama",q:4,d:""}]},
+  {id:"mes9a12",label:"9–12 meses",sub:"GG • ~10–12 kg",cor:"#e8d5f5",tx:"#4a1d7a",emoji:"🔮",aviso:"Compre só quando ela chegar nessa fase.",
+   roupas:[{n:"Body manga curta",q:5,d:""},{n:"Conjunto top+calça",q:5,d:""},{n:"Vestidinho",q:3,d:""},{n:"Shorts/bermuda",q:3,d:""},{n:"Jaqueta/moletom",q:2,d:""},{n:"Meia",q:6,d:""},{n:"Pijama",q:3,d:""},{n:"Tênis/sapatinhos",q:1,d:"Só quando andar"}]},
+];
+
+const essenciais=[
+  {nome:"🛁 Higiene & Banho",itens:[{n:"Banheira ergonômica",e:true},{n:"Sabonete líquido suave (pH neutro)",e:true},{n:"Shampoo infantil",e:true},{n:"Creme para assaduras",e:true},{n:"Algodão ou lenços sem perfume",e:true},{n:"Termômetro de banho",e:true},{n:"Termômetro digital (axilar)",e:true},{n:"Escova de cabelo macia",e:false},{n:"Cortador de unhas infantil",e:true}]},
+  {nome:"🍼 Alimentação",itens:[{n:"Cobre-mamilo",e:true},{n:"Almofada de amamentação",e:true},{n:"Sutiã de amamentação (2-3)",e:true},{n:"Absorvente para seios",e:true},{n:"Bomba extratora de leite",e:false},{n:"Mamadeira (caso precise)",e:false},{n:"Lanolina (creme mamilos)",e:true}]},
+  {nome:"🌙 Sono & Descanso",itens:[{n:"Berço ou mini-berço",e:true},{n:"Colchão de berço firme",e:true},{n:"Protetor de berço (vented)",e:true},{n:"Impermeável para colchão",e:true},{n:"Lençol de berço c/ elástico (3x)",e:true},{n:"Cobertor leve",e:true},{n:"Bebê conforto",e:true},{n:"Cadeira de balanço",e:false}]},
+  {nome:"🚗 Saídas & Locomoção",itens:[{n:"Cadeirinha para carro (grupo 0+)",e:true},{n:"Carrinho de bebê",e:true},{n:"Bolsa maternidade grande",e:true},{n:"Trocador portátil",e:true},{n:"Capa de chuva para carrinho",e:false}]},
+  {nome:"🏠 No Quarto",itens:[{n:"Cômoda com trocador",e:true},{n:"Abajur ou luz noturna",e:true},{n:"Monitor de bebê",e:false},{n:"Umidificador de ar",e:false},{n:"Cadeira de amamentação",e:false},{n:"Armário/guarda-roupa",e:true}]},
+  {nome:"🩺 Saúde & Emergência",itens:[{n:"Aspirador nasal",e:true},{n:"Soro fisiológico infantil",e:true},{n:"Paracetamol infantil (confirmar c/ médica)",e:true},{n:"Gaze estéril",e:true},{n:"Álcool 70% (coto umbilical)",e:true}]},
+  {nome:"👶 Fralda & Troca",itens:[{n:"Fraldas RN (1 pacote)",e:true},{n:"Fraldas P (2–3 pacotes)",e:true},{n:"Lenços umedecidos sem perfume",e:true},{n:"Trocador de mesa",e:true}]},
+];
+
+const bolsa=[
+  {p:"👶 Para a Stella",cor:"#f9c5d1",tx:"#7a2d3e",itens:[{n:"Saída de maternidade",e:true},{n:"2 bodies manga longa RN",e:true},{n:"2 macacões com pézinho RN",e:true},{n:"3 toucas",e:true},{n:"3 pares de meia",e:true},{n:"3 pares de luvas anti-arranhão",e:true},{n:"2 mantas/cobertores",e:true},{n:"Fraldas RN (1 pacote)",e:true},{n:"Lenços umedecidos",e:true},{n:"Creme para assaduras",e:true},{n:"Chupeta (opcional)",e:false}]},
+  {p:"🤱 Para a Natalia",cor:"#fde8c8",tx:"#7a4510",itens:[{n:"RG, cartão convênio, caderneta pré-natal",e:true},{n:"Roupa confortável (2x)",e:true},{n:"Sutiã de amamentação (2x)",e:true},{n:"Absorvente pós-parto",e:true},{n:"Calcinha descartável (5–7)",e:true},{n:"Chinelo de dedo",e:true},{n:"Itens de higiene pessoal",e:true},{n:"Lanolina para mamilos",e:true},{n:"Cobre-mamilo",e:true},{n:"Carregador + cabo extra",e:true},{n:"Lista de contatos",e:true},{n:"Medicação em uso (com prescrição)",e:true}]},
+  {p:"🌸 Para você",cor:"#cde7f8",tx:"#0d3d6b",itens:[{n:"Roupa confortável para pernoite (2x)",e:true},{n:"Itens de higiene pessoal",e:true},{n:"Chinelo",e:true},{n:"Carregador de celular",e:true},{n:"Celular carregado para fotos",e:true},{n:"Lanche/snacks",e:true},{n:"Cadeirinha instalada no carro ✓",e:true},{n:"Dinheiro/cartão",e:true}]},
+];
+
+const cronograma=[
+  {s:"20–24",t:"Preparação inicial",cor:"#fde8c8",tx:"#7a4510",e:"📋",tarefas:["Decidir tema/cores do quartinho","Pesquisar e comprar berço/cômoda","Pesquisar cadeirinha de carro","Abrir lista de presentes","Definir pediatra"]},
+  {s:"24–28",t:"Montar o ninho",cor:"#d4f0d4",tx:"#1e5c2e",e:"🏠",tarefas:["Montar berço e cômoda","Comprar lençóis e itens do quarto","Lavar e organizar roupas (RN e P)","Comprar itens de higiene da Stella","Pesquisar carrinho"]},
+  {s:"28–32",t:"Grandes compras",cor:"#f9c5d1",tx:"#7a2d3e",e:"🛒",tarefas:["Comprar e instalar cadeirinha","Comprar carrinho","Comprar almofada de amamentação","Comprar sutiãs e absorventes","Tour pela maternidade"]},
+  {s:"32–36",t:"Reta final",cor:"#e8d5f5",tx:"#4a1d7a",e:"✨",tarefas:["Montar bolsa da maternidade","Organizar gavetas do quarto","Comprar fraldas RN e P","Instalar app de sono/amamentação","Confirmar plano de parto","Salvar número do hospital"]},
+  {s:"36–38",t:"Tudo pronto!",cor:"#cde7f8",tx:"#0d3d6b",e:"🌟",tarefas:["Bolsa 100% pronta e no carro","Cadeirinha conferida","Rota para maternidade treinada","Lista de contatos para o parto","Freezer com refeições prontas","Descansar — a Stella vem em breve! 🌸"]},
+];
+
+const noturno={
+  turnos:[{t:"22h–2h",r:"Você",e:"🌙",d:"Fique de plantão. Natalia dorme cedo para acumular sono."},{t:"2h–6h",r:"Natalia",e:"⭐",d:"Natalia assume. Você descansa para cuidar juntas de dia."},{t:"6h–9h",r:"Você",e:"☀️",d:"Você assume o início do dia para Natalia recuperar o sono."}],
+  regras:["Quem está dormindo não acorda — só emergência real","Trocar fralda é da pessoa de plantão","Se a Stella não mama em 15 min, aí sim acorda a outra","Fim de semana: uma dorme até tarde cada dia","'Preciso de reforço' é sinal de parceria, não fraqueza"],
+};
+
+const quarto=[
+  {l:"Gaveta 1 — Trocas diárias",e:"👕",cor:"#fde8c8",tx:"#7a4510",itens:["Bodies dobrados em pé","Macacões do dia a dia","Calças legging"],d:"Dobre em pé — você vê tudo de uma vez."},
+  {l:"Gaveta 2 — Noite & Frio",e:"🌙",cor:"#e8d5f5",tx:"#4a1d7a",itens:["Pijamas","Bodies manga longa","Casaquinhos"],d:"Separar noite/dia facilita às 3h da manhã."},
+  {l:"Gaveta 3 — Acessórios",e:"🧦",cor:"#f9c5d1",tx:"#7a2d3e",itens:["Meias em pares","Toucas","Luvas anti-arranhão","Babadores"],d:"Use caixinha organizadora — acessórios somem fácil."},
+  {l:"Gaveta 4 — Troca",e:"🩹",cor:"#d4f0d4",tx:"#1e5c2e",itens:["Fraldas (estoque 1 semana)","Lenços umedecidos","Creme para assaduras","Álcool 70% + gaze","Fralda de pano extra"],d:"Tudo ao alcance de uma mão durante a troca."},
+  {l:"Cima da cômoda",e:"🛏️",cor:"#cde7f8",tx:"#0d3d6b",itens:["Trocador com cinto","Termômetro","Aspirador nasal","Soro fisiológico"],d:"SEMPRE o cinto afivelado no trocador."},
+  {l:"Armário — Peças especiais",e:"👗",cor:"#fde8c8",tx:"#7a4510",itens:["Roupas de cerimônia (penduradas)","Próximo tamanho (saco identificado)","Cobertores extras"],d:"Identifique os sacos com tamanho e estação."},
+  {l:"Perto do berço",e:"🌙",cor:"#f9c5d1",tx:"#7a2d3e",itens:["Luz noturna âmbar","Monitor de bebê","Fralda e lenço de prontidão"],d:"Luz âmbar não atrapalha a melatonina."},
+];
+
+// ── RENDER ──────────────────────────────────────────────────────────────────
+function getFase(){return fases.find(f=>f.id===state.fase)||fases[0];}
+
+function toggle(key){
+  state.checados[key]=!state.checados[key];
+  render(); dbSave();
+}
+function setQty(key,val){
+  state.compradas[key]=Math.max(0,val);
+  render(); dbSave();
+}
+function setGasto(key,val){
+  const n=parseFloat(val.replace(",","."));
+  if(!isNaN(n)&&n>=0) state.gastos[key]=n;
+  render(); dbSave();
+}
+
+function addPecaCustom(nome,meta,dica){
+  if(!state.pecasCustom[state.fase]) state.pecasCustom[state.fase]=[];
+  state.pecasCustom[state.fase].push({id:Date.now(),nome,meta:parseInt(meta)||1,dica});
+  render(); dbSave();
+}
+function removePecaCustom(faseId,id){
+  state.pecasCustom[faseId]=(state.pecasCustom[faseId]||[]).filter(p=>p.id!==id);
+  render(); dbSave();
+}
+function addRegra(r){state.tarefaCustom.push(r);render();dbSave();}
+
+function render(){
+  document.getElementById("app").innerHTML=buildApp();
+  bindEvents();
+}
+
+function buildApp(){
+  const abas=[
+    {id:"roupas",l:"👗 Roupas"},{id:"essenciais",l:"🛒 Essenciais"},
+    {id:"bolsa",l:"🎒 Bolsa"},{id:"cronograma",l:"📅 Semanas"},
+    {id:"gastos",l:"💰 Gastos"},{id:"noturno",l:"🌙 Noturno"},
+    {id:"quarto",l:"🏠 Quarto"},{id:"dicas",l:"💡 Dicas"},
+  ];
+  return `
+    <div class="header">
+      <div style="font-size:40px">🌟</div>
+      <h1>Manual da Stella</h1>
+      <p>Tudo para a chegada dela, com amor</p>
+      <div id="saving-indicator" class="saving" style="display:none">💾 Salvando...</div>
+    </div>
+    <div class="tabs">
+      ${abas.map(a=>`<button class="tab${state.aba===a.id?" active":""}" onclick="setAba('${a.id}')">${a.l}</button>`).join("")}
+    </div>
+    <div class="content">
+      ${state.aba==="roupas"?buildRoupas():""}
+      ${state.aba==="essenciais"?buildEssenciais():""}
+      ${state.aba==="bolsa"?buildBolsa():""}
+      ${state.aba==="cronograma"?buildCronograma():""}
+      ${state.aba==="gastos"?buildGastos():""}
+      ${state.aba==="noturno"?buildNoturno():""}
+      ${state.aba==="quarto"?buildQuarto():""}
+      ${state.aba==="dicas"?buildDicas():""}
+    </div>`;
+}
+
+function setAba(a){state.aba=a;render();}
+function setFase(f){state.fase=f;render();}
+
+function buildRoupas(){
+  const fase=getFase();
+  const custom=state.pecasCustom[state.fase]||[];
+  const totalMeta=fase.roupas.reduce((a,r)=>a+r.q,0)+custom.reduce((a,p)=>a+p.meta,0);
+  const totalComp=fase.roupas.reduce((a,r)=>a+(state.compradas[`${state.fase}-${r.n}`]||0),0)+custom.reduce((a,p)=>a+(state.compradas[`${state.fase}-c-${p.id}`]||0),0);
+  const pct=totalMeta?Math.min(100,Math.round(totalComp/totalMeta*100)):0;
+  const falta=Math.max(0,totalMeta-totalComp);
+
+  const faseBtns=fases.map(f=>{
+    const tm=f.roupas.reduce((a,r)=>a+r.q,0)+((state.pecasCustom[f.id]||[]).reduce((a,p)=>a+p.meta,0));
+    const tc=f.roupas.reduce((a,r)=>a+(state.compradas[`${f.id}-${r.n}`]||0),0)+((state.pecasCustom[f.id]||[]).reduce((a,p)=>a+(state.compradas[`${f.id}-c-${p.id}`]||0),0));
+    const ok=tc>=tm;
+    const sel=state.fase===f.id;
+    return `<button class="fase-btn" onclick="setFase('${f.id}')" style="border-color:${sel?f.tx:"#e8d8c8"};background:${sel?f.cor:"#fff"};color:${sel?f.tx:"#888"}">
+      ${f.emoji} ${f.label}<br><span style="font-size:10px;opacity:0.8">${f.sub}</span><br>
+      <span style="font-size:10px;color:${ok?"#6abf6a":sel?f.tx:"#bbb"};font-weight:700">${tc}/${tm}</span>
+    </button>`;
+  }).join("");
+
+  const roupasHTML=fase.roupas.map(r=>{
+    const ck=`${state.fase}-${r.n}`;
+    const comp=state.compradas[ck]||0;
+    const ok=comp>=r.q;
+    const gk=`g-r-${state.fase}-${r.n}`;
+    const gval=state.gastos[gk];
+    return `<div class="card" style="background:${ok?"#f0f8f0":"#fff"};border-color:${ok?"#6abf6a":"#ead8c8"}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div><div style="font-size:13px;font-weight:600;color:${ok?"#6abf6a":"#2d1f1f"}">${ok?"✅ ":""}${r.n}</div>${r.d?`<div style="font-size:11px;color:#a08080;margin-top:2px">💬 ${r.d}</div>`:""}</div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-size:10px;color:#999">meta</div><div style="font-size:15px;font-weight:700;color:${fase.tx}">${r.q}x</div></div>
+      </div>
+      <div class="qty-ctrl" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:6px">
+          <span style="font-size:12px;color:#666;font-weight:600">Já tenho:</span>
+          <span style="font-size:12px;color:${comp<r.q?"#e88030":"#6abf6a"};font-weight:700">${comp<r.q?`faltam ${r.q-comp}`:"✓ completo"}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <button class="qty-btn" onclick="setQty('${ck}',${comp-1})">−</button>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <span style="font-size:18px;font-weight:700;color:${ok?"#6abf6a":"#2d1f1f"}">${comp}</span>
+              <span style="font-size:12px;color:#bbb;align-self:flex-end">de ${r.q}</span>
+            </div>
+            <div style="height:5px;background:#e0e0e0;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(100,comp/r.q*100)}%;background:${ok?"#6abf6a":fase.cor};border-radius:3px;transition:width 0.3s"></div>
+            </div>
+          </div>
+          <button class="qty-btn" style="border-color:${fase.tx};background:${fase.cor};color:${fase.tx}" onclick="setQty('${ck}',${comp+1})">+</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:#aaa">💰</span>
+        <input type="number" placeholder="valor gasto (R$)" value="${gval||""}" onchange="setGasto('${gk}',this.value)" style="flex:1;padding:4px 8px;border:1px dashed #ddd;border-radius:6px;font-size:12px;font-family:Georgia,serif;color:${gval?"#c06080":"#bbb"}">
+      </div>
+    </div>`;
+  }).join("");
+
+  const customHTML=custom.map(p=>{
+    const ck=`${state.fase}-c-${p.id}`;
+    const comp=state.compradas[ck]||0;
+    const ok=comp>=p.meta;
+    const gk=`g-c-${state.fase}-${p.id}`;
+    const gval=state.gastos[gk];
+    return `<div class="peca-custom" style="background:${ok?"#f0f8f0":"#fff"};border-color:${ok?"#6abf6a":"#d0c8f0"}">
+      <button class="remove-btn" onclick="removePecaCustom('${state.fase}',${p.id})">✕</button>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div><div style="font-size:13px;font-weight:600;color:${ok?"#6abf6a":"#4a1d7a"}">✨ ${p.nome}</div>${p.dica?`<div style="font-size:11px;color:#a08080;margin-top:2px">💬 ${p.dica}</div>`:""}</div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px"><div style="font-size:10px;color:#999">meta</div><div style="font-size:15px;font-weight:700;color:#4a1d7a">${p.meta}x</div></div>
+      </div>
+      <div class="qty-ctrl" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:6px">
+          <span style="font-size:12px;color:#666;font-weight:600">Já tenho:</span>
+          <span style="font-size:12px;color:${comp<p.meta?"#e88030":"#6abf6a"};font-weight:700">${comp<p.meta?`faltam ${p.meta-comp}`:"✓ completo"}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <button class="qty-btn" onclick="setQty('${ck}',${comp-1})">−</button>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <span style="font-size:18px;font-weight:700;color:${ok?"#6abf6a":"#2d1f1f"}">${comp}</span>
+              <span style="font-size:12px;color:#bbb;align-self:flex-end">de ${p.meta}</span>
+            </div>
+            <div style="height:5px;background:#e0e0e0;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(100,comp/p.meta*100)}%;background:${ok?"#6abf6a":"#c8a8e0"};border-radius:3px;transition:width 0.3s"></div>
+            </div>
+          </div>
+          <button class="qty-btn" style="border-color:#4a1d7a;background:#e8d5f5;color:#4a1d7a" onclick="setQty('${ck}',${comp+1})">+</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:#aaa">💰</span>
+        <input type="number" placeholder="valor gasto (R$)" value="${gval||""}" onchange="setGasto('${gk}',this.value)" style="flex:1;padding:4px 8px;border:1px dashed #ddd;border-radius:6px;font-size:12px;font-family:Georgia,serif;color:${gval?"#c06080":"#bbb"}">
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+    <div class="fases-scroll">${faseBtns}</div>
+    <div style="background:${fase.cor};border-radius:14px;padding:16px;margin-bottom:16px;border:1.5px solid ${fase.tx}25">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><div style="font-size:18px;font-weight:700;color:${fase.tx}">${fase.emoji} ${fase.label}</div><div style="font-size:11px;color:${fase.tx};opacity:0.8">${fase.sub}</div></div>
+        <div style="text-align:right"><div style="font-size:18px;font-weight:700;color:${fase.tx}">${totalComp}<span style="font-size:12px;opacity:0.7">/${totalMeta}</span></div><div style="font-size:11px;color:${fase.tx};opacity:0.8">peças compradas</div>${falta>0?`<div style="font-size:11px;color:${fase.tx};font-weight:600">faltam ${falta}</div>`:`<div style="font-size:11px;color:#6abf6a;font-weight:700">✓ completo!</div>`}</div>
+      </div>
+      <div style="height:7px;background:rgba(255,255,255,0.4);border-radius:4px;overflow:hidden;margin:10px 0">
+        <div style="height:100%;width:${pct}%;background:rgba(255,255,255,0.8);border-radius:4px;transition:width 0.4s"></div>
+      </div>
+      <div style="padding:8px 12px;background:rgba(255,255,255,0.6);border-radius:8px;font-size:12px;color:${fase.tx};font-style:italic">⚠️ ${fase.aviso}</div>
+    </div>
+    ${roupasHTML}
+    ${customHTML}
+    <button class="btn-add" onclick="document.getElementById('form-peca').style.display='block';this.style.display='none'">✨ Adicionar peça personalizada nesta fase</button>
+    <div id="form-peca" style="display:none;background:#fff;border:1.5px solid #c8a8e0;border-radius:12px;padding:16px;margin-top:10px">
+      <div style="font-size:14px;font-weight:700;color:#4a1d7a;margin-bottom:12px">✨ Nova peça — ${fase.label}</div>
+      <input id="fp-nome" class="input-field" placeholder="Nome da peça *" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <span style="font-size:12px;color:#888">Quantidade:</span>
+        <button class="qty-btn" onclick="let v=parseInt(document.getElementById('fp-meta').value)||1;document.getElementById('fp-meta').value=Math.max(1,v-1)">−</button>
+        <input id="fp-meta" type="number" value="1" min="1" style="width:50px;text-align:center;padding:6px;border:1.5px solid #e0d0c0;border-radius:8px;font-size:14px;font-weight:700;color:#4a1d7a">
+        <button class="qty-btn" style="border-color:#4a1d7a;background:#e8d5f5;color:#4a1d7a" onclick="let v=parseInt(document.getElementById('fp-meta').value)||1;document.getElementById('fp-meta').value=v+1">+</button>
+      </div>
+      <input id="fp-dica" class="input-field" placeholder="Observação (opcional)" style="margin-bottom:12px">
+      <div style="display:flex;gap:8px">
+        <button onclick="addPecaCustom(document.getElementById('fp-nome').value,document.getElementById('fp-meta').value,document.getElementById('fp-dica').value)" style="flex:1;padding:11px;background:linear-gradient(135deg,#e8d5f5,#4a1d7a);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">Adicionar</button>
+        <button onclick="document.getElementById('form-peca').style.display='none';document.querySelector('.btn-add').style.display='block'" style="padding:11px 14px;background:#eee;border:none;border-radius:10px;font-size:13px;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+}
+
+function buildEssenciais(){
+  const total=essenciais.reduce((a,c)=>a+c.itens.length,0);
+  const check=essenciais.reduce((a,c)=>a+c.itens.filter(i=>state.checados[`e-${c.nome}-${i.n}`]).length,0);
+  const pct=Math.round(check/total*100);
+  return `
+    <div class="card" style="text-align:center;margin-bottom:20px">
+      <div style="font-size:12px;color:#999;margin-bottom:4px">Progresso geral</div>
+      <div style="font-size:28px;font-weight:700;color:#c06080">${check}<span style="font-size:14px;color:#ccc">/${total}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+    ${essenciais.map(cat=>{
+      const cc=cat.itens.filter(i=>state.checados[`e-${cat.nome}-${i.n}`]).length;
+      return `<div style="margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="section-title">${cat.nome}</span><span style="font-size:12px;color:#999">${cc}/${cat.itens.length}</span></div>
+        ${cat.itens.map(it=>{
+          const k=`e-${cat.nome}-${it.n}`;const ch=!!state.checados[k];
+          const gk=`ge-${cat.nome}-${it.n}`;const gv=state.gastos[gk];
+          return `<div class="card" style="background:${ch?"#f0f8f0":"#fff"};border-color:${ch?"#6abf6a":it.e?"#ead8c8":"#f0e8e0"};padding:10px 12px;margin-bottom:7px">
+            <div class="row" style="padding:0;margin-bottom:6px" onclick="toggle('${k}')">
+              <div class="checkbox${ch?" checked":""}">✓</div>
+              <span style="flex:1;font-size:13px;font-weight:${it.e?600:400};text-decoration:${ch?"line-through":"none"};color:${ch?"#999":"#2d1f1f"}">${it.n}</span>
+              ${it.e&&!ch?`<span class="chip" style="background:#fde8c8;color:#7a4510">ESSENCIAL</span>`:""}
+            </div>
+            <input type="number" placeholder="valor gasto (R$)" value="${gv||""}" onchange="setGasto('${gk}',this.value)" style="width:140px;padding:3px 8px;border:1px dashed #ddd;border-radius:6px;font-size:11px;font-family:Georgia,serif;color:${gv?"#c06080":"#bbb"}">
+          </div>`;
+        }).join("")}
+      </div>`;
+    }).join("")}`;
+}
+
+function buildBolsa(){
+  return `
+    <div style="background:linear-gradient(135deg,#f9c5d1,#fde8c8);border-radius:14px;padding:16px;margin-bottom:18px;text-align:center">
+      <div style="font-size:24px">🎒</div>
+      <div style="font-size:15px;font-weight:700;color:#7a2d3e;margin-top:4px">Bolsa da Maternidade</div>
+      <div style="font-size:12px;color:#7a4510;font-style:italic;margin-top:4px">Deixe pronta a partir da semana 36</div>
+    </div>
+    ${bolsa.map(p=>{
+      const ch=p.itens.filter(i=>state.checados[`b-${p.p}-${i.n}`]).length;
+      return `<div style="margin-bottom:20px">
+        <div style="background:${p.cor};border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:14px;font-weight:700;color:${p.tx}">${p.p}</span>
+          <span style="font-size:12px;color:${p.tx};opacity:0.8">${ch}/${p.itens.length}</span>
+        </div>
+        ${p.itens.map(it=>{
+          const k=`b-${p.p}-${it.n}`;const c=!!state.checados[k];
+          return `<div class="row" onclick="toggle('${k}')" style="background:${c?"#f0f8f0":"#fff"};border:1.5px solid ${c?"#6abf6a":it.e?"#ead8c8":"#f0e8e0"};border-radius:10px;margin-bottom:6px">
+            <div class="checkbox${c?" checked":""}">✓</div>
+            <span style="flex:1;font-size:13px;font-weight:${it.e?600:400};text-decoration:${c?"line-through":"none"};color:${c?"#999":"#2d1f1f"}">${it.n}</span>
+            ${it.e&&!c?`<span class="chip" style="background:${p.cor};color:${p.tx}">ESSENCIAL</span>`:""}
+          </div>`;
+        }).join("")}
+      </div>`;
+    }).join("")}
+    <div style="background:#fff8f0;border:1.5px solid #e8c8a0;border-radius:12px;padding:14px">
+      <div style="font-size:13px;font-weight:700;color:#7a4510;margin-bottom:6px">⚠️ Não esqueça</div>
+      <div style="font-size:12px;color:#7a4510;line-height:1.7">Separe os documentos numa bolsinha interna. A <strong>cadeirinha instalada no carro</strong> é obrigatória — não deixam sair sem ela.</div>
+    </div>`;
+}
+
+function buildCronograma(){
+  const sem=state.semana||28;
+  return `
+    <div class="card" style="margin-bottom:18px">
+      <div style="font-size:12px;color:#999;margin-bottom:8px">Você está na semana</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button onclick="state.semana=Math.max(20,(state.semana||28)-1);render();dbSave()" style="width:32px;height:32px;border-radius:50%;border:1.5px solid #e0d0c0;background:#fff;font-size:18px;color:#c06080">−</button>
+        <div style="font-size:34px;font-weight:700;color:#c06080;min-width:50px;text-align:center">${sem}</div>
+        <button onclick="state.semana=Math.min(40,(state.semana||28)+1);render();dbSave()" style="width:32px;height:32px;border-radius:50%;border:1.5px solid #e0d0c0;background:#fff;font-size:18px;color:#c06080">+</button>
+      </div>
+    </div>
+    ${cronograma.map(p=>{
+      const[s1,s2]=p.s.split("–").map(Number);
+      const ativo=sem>=s1&&sem<=s2;const passado=sem>s2;
+      return `<div style="background:${ativo?p.cor:passado?"#f5f5f0":"#fff"};border:${ativo?`2px solid ${p.tx}`:"1.5px solid #e8d8c8"};border-radius:14px;padding:16px;margin-bottom:14px;opacity:${passado?0.65:1}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div><div style="font-size:10px;color:${ativo?p.tx:"#999"};font-weight:600;text-transform:uppercase;letter-spacing:1px">Semana ${p.s}</div><div style="font-size:15px;font-weight:700;color:${ativo?p.tx:"#555"};margin-top:2px">${p.e} ${p.t}</div></div>
+          ${ativo?`<span class="chip" style="background:${p.tx};color:#fff">AGORA</span>`:""}
+          ${passado?`<span class="chip" style="background:#ddd;color:#888">✓ PASSOU</span>`:""}
+        </div>
+        ${p.tarefas.map(t=>{
+          const k=`c-${p.s}-${t}`;const ch=!!state.checados[k];
+          return `<div class="row" onclick="toggle('${k}')" style="padding:6px 0">
+            <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${ch?"#6abf6a":ativo?p.tx:"#ccc"};background:${ch?"#6abf6a":"transparent"};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:#fff;font-weight:700">${ch?"✓":""}</div>
+            <span style="font-size:12px;text-decoration:${ch?"line-through":"none"};color:${ch?"#aaa":ativo?p.tx:"#555"}">${t}</span>
+          </div>`;
+        }).join("")}
+      </div>`;
+    }).join("")}`;
+}
+
+function buildGastos(){
+  const total=Object.values(state.gastos).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const cats=[
+    {l:"👗 Nascimento",p:"g-r-nascimento-"},{l:"👗 1–3 meses",p:"g-r-mes1a3-"},
+    {l:"👗 3–6 meses",p:"g-r-mes3a6-"},{l:"👗 6–9 meses",p:"g-r-mes6a9-"},
+    {l:"👗 9–12 meses",p:"g-r-mes9a12-"},{l:"🛁 Higiene & Banho",p:"ge-🛁 Higiene & Banho-"},
+    {l:"🍼 Alimentação",p:"ge-🍼 Alimentação-"},{l:"🌙 Sono & Descanso",p:"ge-🌙 Sono & Descanso-"},
+    {l:"🚗 Saídas",p:"ge-🚗 Saídas & Locomoção-"},{l:"🏠 Quarto",p:"ge-🏠 No Quarto-"},
+    {l:"🩺 Saúde",p:"ge-🩺 Saúde & Emergência-"},{l:"👶 Fraldas",p:"ge-👶 Fralda & Troca-"},
+  ];
+  const comValor=cats.map(c=>({...c,v:Object.entries(state.gastos).filter(([k])=>k.startsWith(c.p)).reduce((a,[,v])=>a+(parseFloat(v)||0),0)})).filter(c=>c.v>0);
+  return `
+    <div style="background:linear-gradient(135deg,#d4f0d4,#cde7f8);border-radius:14px;padding:20px;margin-bottom:20px;text-align:center">
+      <div style="font-size:12px;color:#1e5c2e;margin-bottom:4px">Total investido até agora</div>
+      <div style="font-size:36px;font-weight:700;color:#1e5c2e">R$ ${total.toFixed(2).replace(".",",")}</div>
+    </div>
+    ${comValor.length?comValor.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #e8d8c8;border-radius:10px;padding:12px 14px;margin-bottom:8px"><span style="font-size:13px">${c.l}</span><span style="font-size:13px;font-weight:700;color:#c06080">R$ ${c.v.toFixed(2).replace(".",",")}</span></div>`).join("")
+    :`<div style="text-align:center;padding:40px 20px;color:#bbb;font-size:14px"><div style="font-size:36px;margin-bottom:10px">💰</div>Adicione valores nas abas Roupas e Essenciais.</div>`}`;
+}
+
+function buildNoturno(){
+  return `
+    <div style="background:#1a1a2e;border-radius:14px;padding:20px;margin-bottom:18px;text-align:center">
+      <div style="font-size:30px;margin-bottom:6px">🌙</div>
+      <div style="font-size:16px;font-weight:700;color:#e8d5f5;margin-bottom:4px">Divisão de Tarefas Noturnas</div>
+      <div style="font-size:12px;color:#9080b0;font-style:italic">Para sobreviver (e se amar) nas primeiras semanas</div>
+    </div>
+    ${noturno.turnos.map(t=>`
+      <div class="card" style="border-color:#e0d0f0;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div><div style="font-size:18px;margin-bottom:4px">${t.e}</div><div style="font-size:16px;font-weight:700;color:#4a1d7a">${t.t}</div></div>
+          <div style="background:#e8d5f5;padding:6px 14px;border-radius:20px"><div style="font-size:12px;font-weight:700;color:#4a1d7a">${t.r}</div></div>
+        </div>
+        <div style="font-size:12px;color:#666;line-height:1.6;border-top:1px solid #f0e8f8;padding-top:8px">${t.d}</div>
+      </div>`).join("")}
+    <div style="background:#f8f4ff;border:1.5px solid #d8c8f0;border-radius:14px;padding:16px;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:#4a1d7a;margin-bottom:10px">📋 Regras do casal</div>
+      ${noturno.regras.map(r=>`<div style="font-size:12px;color:#555;margin-bottom:7px;border-left:3px solid #c8a8e0;padding-left:10px;line-height:1.5">${r}</div>`).join("")}
+      ${(state.tarefaCustom||[]).map(r=>`<div style="font-size:12px;color:#4a1d7a;margin-bottom:7px;padding-left:10px;border-left:3px solid #9a78d0;font-style:italic">${r}</div>`).join("")}
+      <input id="nova-regra" class="input-field" placeholder="+ adicionar combinado do casal..." style="margin-top:12px;border-style:dashed;border-color:#c8a8e0" onkeydown="if(event.key==='Enter'&&this.value.trim()){addRegra(this.value.trim());this.value=''}">
+      <div style="font-size:10px;color:#bbb;margin-top:4px">Pressione Enter para salvar</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#1a1a2e,#2d1a4a);border-radius:14px;padding:18px;text-align:center">
+      <div style="font-size:22px;margin-bottom:8px">💜</div>
+      <div style="font-size:12px;color:#d0b8f0;line-height:1.75;font-style:italic">"Cuidar juntas de noite é um dos maiores atos de amor. É temporário — e vale cada segundo."</div>
+    </div>`;
+}
+
+function buildQuarto(){
+  return `
+    <div style="background:#fff8f4;border:1.5px solid #f0d8c8;border-radius:12px;padding:13px;margin-bottom:18px;font-size:12px;color:#7a4510;line-height:1.6">
+      <strong>Princípio básico:</strong> tudo que você usa na troca ao alcance de <em>uma mão</em>. Nunca tire as duas mãos da Stella no trocador.
+    </div>
+    ${quarto.map(loc=>{
+      const ch=loc.itens.filter(i=>state.checados[`q-${loc.l}-${i}`]).length;
+      return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+        <div style="background:${loc.cor};padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:14px;font-weight:700;color:${loc.tx}">${loc.e} ${loc.l}</span>
+          <span style="font-size:11px;color:${loc.tx};opacity:0.8">${ch}/${loc.itens.length}</span>
+        </div>
+        <div style="padding:12px 14px">
+          ${loc.itens.map(it=>{
+            const k=`q-${loc.l}-${it}`;const c=!!state.checados[k];
+            return `<div class="row" onclick="toggle('${k}')" style="padding:8px 0">
+              <div class="checkbox${c?" checked":""}">✓</div>
+              <span style="font-size:13px;text-decoration:${c?"line-through":"none"};color:${c?"#aaa":"#2d1f1f"}">${it}</span>
+            </div>`;
+          }).join("")}
+          <div style="margin-top:8px;padding:8px 10px;background:${loc.cor}60;border-radius:8px;font-size:11px;color:${loc.tx};font-style:italic">💡 ${loc.d}</div>
+        </div>
+      </div>`;
+    }).join("")}`;
+}
+
+function buildDicas(){
+  const dicas=[
+    {e:"🏪",t:"Regra de ouro: compre pouco no início",tx:"Para RN, compre no máximo 30% do que planeja. A Stella pode nascer já no tamanho P. Guarde as notas!",cor:"#fde8c8",c:"#7a4510"},
+    {e:"📐",t:"Como calcular quantas roupas",tx:"Bebês sujam 2–3 conjuntos/dia. Com lavagem a cada 2 dias = ~6 bodies. Some 2 extras = 8.",cor:"#d4f0d4",c:"#1e5c2e"},
+    {e:"📦",t:"O que ter pronto ANTES de ir à maternidade",tx:"Cadeirinha instalada ✓, berço montado ✓, fraldas RN e P ✓, bolsa pronta ✓.",cor:"#cde7f8",c:"#0d3d6b"},
+    {e:"🧺",t:"Antes de usar: lave tudo",tx:"Lave com sabão neutro infantil, água morna. Sem amaciante — irrita a pele do bebê.",cor:"#e8d5f5",c:"#4a1d7a"},
+    {e:"🚫",t:"O que NÃO comprar em excesso",tx:"Sapatos (ela não anda!), roupas de cerimônia, travesseiro no berço (risco), fraldas RN — 1 pacote.",cor:"#f9c5d1",c:"#7a2d3e"},
+    {e:"💡",t:"Tamanhos no Brasil",tx:"RN = até 3,5 kg | P = 3,5–6 kg | M = 6–8 kg | G = 8–10 kg | GG = 10–12 kg.",cor:"#d4f0d4",c:"#1e5c2e"},
+  ];
+  return `
+    ${dicas.map(d=>`<div style="background:${d.cor};border-radius:14px;padding:16px;margin-bottom:12px;border:1.5px solid ${d.c}20">
+      <div style="font-size:18px;margin-bottom:4px">${d.e}</div>
+      <div style="font-size:13px;font-weight:700;color:${d.c};margin-bottom:4px">${d.t}</div>
+      <div style="font-size:12px;color:${d.c};line-height:1.6;opacity:0.9">${d.tx}</div>
+    </div>`).join("")}
+    <div style="background:linear-gradient(135deg,#f9c5d1,#fde8c8);border-radius:14px;padding:20px;text-align:center;margin-top:8px">
+      <div style="font-size:28px;margin-bottom:8px">🌟</div>
+      <div style="font-size:14px;font-weight:700;color:#7a2d3e;margin-bottom:6px">Para a Natalia e para você</div>
+      <div style="font-size:12px;color:#7a4510;line-height:1.75;font-style:italic">Cada item comprado com cuidado é um ato de amor pela Stella. Não precisa ser tudo perfeito — ela só precisa de vocês.</div>
+    </div>`;
+}
+
+function bindEvents(){}
+
+// ── INIT ────────────────────────────────────────────────────────────────────
+(async()=>{
+  const d=await dbLoad();
+  if(d){
+    if(d.checados)     state.checados=d.checados;
+    if(d.gastos)       state.gastos=d.gastos;
+    if(d.semana!==undefined) state.semana=d.semana;
+    if(d.tarefaCustom) state.tarefaCustom=d.tarefaCustom;
+    if(d.compradas)    state.compradas=d.compradas;
+    if(d.pecasCustom)  state.pecasCustom=d.pecasCustom;
+  }
+  render();
+})();
+</script>
+</body>
+</html>
